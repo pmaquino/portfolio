@@ -1,0 +1,70 @@
+---
+title: "task4"
+author: "Patrick Aquino"
+date: "10/21/2020"
+output: html_document
+---
+
+# Task: 
+
+For the account with the highest number of transactions, make a time series line plot for the behavior of the account over time, including all the debits and credits, the different methods, and with the different categories.
+
+# Procedure:
+### 1. Import dataset (accounts_analytical and transactions)
+### 2. Convert $acc_creation_date and $loan_date into date variables
+### 3. Find the account with the highest transactions 
+### 4. Subset the account by type
+### 5. Rename NA levels into Not Specified
+### 6. Plot time series
+
+# Import
+
+```{r import, include=TRUE}
+acc <- read.csv('accounts_analytical.csv')
+trans <- read.csv('transactions.csv')
+```
+
+# Coverting Data Variables
+```{r datevar, include=TRUE}
+library(lubridate)
+acc$acct_creation_date <- ymd(acc$acct_creation_date)
+acc$loan_date <- ymd(acc$loan_date)
+trans$date <- ymd(trans$date)
+```
+
+# Find the Account with most transactions
+```{r mosttrans, include=TRUE}
+findacc <- table(trans$account_id)
+names(findacc[which.max(findacc)]) # '8261'
+```
+
+# Subset Data
+```{r subset, include=T}
+subset <- trans[trans$account_id == '8261',]
+```
+
+# Subset Part 2 by Type
+```{r subset2, include=T}
+credit <- subset[subset$type == 'credit',]
+debit <- subset[subset$type == 'debit',]
+```
+
+# Renaming Levels
+```{r renam, include=T}
+levels(credit$method)[1] <- 'not specified'
+levels(debit$method)[1] <- 'not specified'
+levels(credit$category)[1] <- 'not specified'
+levels(debit$category)[1] <- 'not specified'
+```
+
+# Plot Time Series for Account_ID #8261
+```{r plot, include=T}
+library(ggplot2)
+vis <- ggplot(credit, aes(x=date, y=balance, )) + geom_line(color = "steelblue") + geom_point()
+vis + facet_wrap(. ~ category, ncol = 2) + labs(title = 'Account #8261 Credit Transaction History by Categories')
+vis + facet_wrap(. ~ method, ncol = 2) + labs(title = 'Account #8261 Credit Transaction History by Method')
+
+vis <- ggplot(debit, aes(x=date, y=balance, )) + geom_line(color = "steelblue") + geom_point()
+vis + facet_wrap(. ~ category, ncol = 2) + labs(title = 'Account #8261 Debit Transaction History by Categories')
+vis + facet_wrap(. ~ method, ncol = 2) + labs(title = 'Account #8261 Debit Transaction History by Method')
+```

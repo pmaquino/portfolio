@@ -1,0 +1,92 @@
+---
+title: "task3"
+author: "Patrick Aquino"
+date: "10/21/2020"
+output: html_document
+---
+
+# Task:
+
+Is the relationship between a good or bad loan and the time between and account is opened and the loan is created? Is there a specific set of accounts that seem to be at higher or lower risk of defaulting?
+
+# Procedure:
+### 1. Import dataset (accounts_analytical and transactions)
+### 2. Convert $acc_creation_date and $loan_date into date variables
+### 3. Create a new variable extracting the year the account was created and the year the loan was craeted
+### 4. Check each year with the highest default rate
+### 5. See the relationship of $loan_default with $owner_district
+
+# Import
+
+```{r import, include=TRUE}
+acc <- read.csv('accounts_analytical.csv')
+trans <- read.csv('transactions.csv')
+```
+
+# Coverting Data Variables
+```{r datevar, include=TRUE}
+library(lubridate)
+acc$acct_creation_date <- ymd(acc$acct_creation_date)
+acc$loan_date <- ymd(acc$loan_date)
+```
+
+# Creating Year variables for Account creation and Loan creation.
+```{r year, include=TRUE}
+acc$acc_year <- year(acc$acct_creation_date)
+acc$loan_year <- year(acc$loan_date)
+```
+
+# Reducing Dimensions
+```{r reduc, include=TRUE}
+library(dplyr)
+
+final <- acc %>%
+  select(account_id, loan_year, acc_year, owner_district, loan_default)
+```
+
+# EDAish
+```{r eda, include=TRUE}
+table(final$loan_default)
+# 606 FALSE, 76 TRUE
+# We want to examine TRUE
+```
+
+# Visualization for each Loan and Account creation year
+```{r vis, include=TRUE}
+library(ggplot2)
+library(tidyverse)
+loan <- ggplot(final, aes(fill = loan_default, x = loan_year, y = account_id)) + geom_bar(position = 'fill', stat = 'identity')
+account <- final %>% 
+  drop_na(loan_default) %>%
+  ggplot(aes(x = acc_year, fill = loan_default, y = account_id)) +
+  geom_bar(position = 'fill', stat = 'identity')
+```
+
+# Account Year
+```{r accyear, include = T}
+account + labs(title = 'Loan Defaults for Accounts Created in Specific Years', x = 'Account Year Created', y = 'Value')
+```
+
+It seems that the years with the highest % defaults are in 1993 and 1995 for accounts that are created. Since 1995, the default rate has been dropping. 
+
+# Loan Year
+```{r loanyear, include =T}
+loan + labs(title = 'Loan Defaults for Loans Created in Specific Years', x = 'Account Year Created', y = 'Value')
+```
+
+For loans that are created for a specific year, it seems that loans that are taken in 1998 seems to have a significant lower default rate. While the other years seem to have a similar default loan rate. 
+
+# Looking at the relationship between Loan Default and Districts 
+```{r visvis, include = T}
+dist <- final %>% 
+  drop_na(loan_default) %>%
+  ggplot(aes(x = owner_district, fill = loan_default, y = account_id)) +
+  geom_bar(position = 'fill', stat = 'identity')
+```
+```{r dist, include = T}
+dist + labs(title = 'Default Rate for each District', x= 'District Names', y = 'Values') + theme(axis.text.x = element_text(angle = 90))
+```
+
+It seems that some specific districts have higher default rates for accounts such as Semily, Decin, Jindichruv Hradek and Olomouc.
+
+

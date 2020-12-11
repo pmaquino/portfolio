@@ -1,0 +1,286 @@
+---
+title: "Why has Pat Aquino never tried Indian Food?"
+output: 
+  flexdashboard::flex_dashboard:
+    #orientation: columns, rows
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tidytext)
+library(stringr)
+library(sf)
+library(reticulate)
+library(treemap)
+library(tm)
+library(circlize)
+library(flexdashboard)
+library(plotly)
+library(plotrix)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+library(echarts4r)
+library(ggthemes)
+library(widyr)
+library(latticeExtra)
+#library(scales)
+#library(igraph)
+#library(ggraph)
+#library(widyr)
+#library(psych)
+#library(cleanNLP)
+#library(packcircles)
+#library(patchwork)
+```
+
+```{r, include=FALSE}
+# Importing
+df <- read.csv('indian_food.csv')
+indstate <- read.csv('indian_states.csv')
+indstate <- subset(indstate, select = -X)
+ts <- read.csv('indcrops.csv')
+```
+```{r, include = FALSE}
+# Theme
+theme_pat <- function () { 
+    theme_bw(base_size=12, base_family="Avenir") %+replace% 
+        theme(
+            panel.background  = element_blank(),
+            plot.background = element_rect(fill="gray96", colour=NA), 
+            legend.background = element_rect(fill="transparent", colour=NA),
+            legend.key = element_rect(fill="transparent", colour=NA)
+        )
+}
+
+```
+
+
+```{r, echo = FALSE}
+# Have to change some of the variable types (e.g. chr -> factor variables)
+# Definitely, diet, flavor_profile, course, state, region
+df <- df %>%
+  mutate(diet = as.factor(diet),
+         flavor_profile = as.factor(flavor_profile),
+         course = as.factor(course),
+         state = as.factor(state),
+         region = as.factor(region))
+```
+
+```{r, include=FALSE}
+levels(df$diet) # non-vegetarian, vegetarian
+levels(df$flavor_profile) # -1, bitter, sour, spicy, sweet
+levels(df$course) # dessert, main course, snack, starter
+levels(df$state) # -1, etc.
+levels(df$region) # -1, central, east, north, ne, south, west
+```
+
+```{r, include=FALSE}
+# Some variables have -1 as a level. This should be an error and be removed. 
+# 255 obs to .... (when NAs are removed)
+df2 <- subset(df, flavor_profile != '-1') #226
+df2 <- subset(df2, state != '-1') #206
+df2 <- subset(df2, region != '-1') #206
+df2$region <- droplevels(df2$region)
+df2$state <- droplevels(df2$state)
+df2$flavor_profile <- droplevels(df2$flavor_profile)
+```
+```{r, include=FALSE}
+shp <- st_read('india_ds.shp')
+shp2 <- st_read('india_st.shp')
+shp2 <- shp2 %>% rename(
+  state = STATE
+)
+dftest <- df2 %>% mutate(state = toupper(state))
+dftest$state <- as.factor(dftest$state)
+
+indstate$state <- as.factor(indstate$State)
+dfll2 <- merge(df2, indstate, by = 'state')
+
+lowerstates <- levels(df2$state)
+upperstates <- toupper(lowerstates)
+
+test <- merge(dftest, shp2, by = 'state')
+
+a <- dfll2 %>% group_by(state) %>% count(flavor_profile)
+b <- a %>% group_by(state) %>% top_n(1, n)
+c <- as.data.frame(b)
+
+c  <- c %>% mutate(state = toupper(state))
+
+test2 <- merge(c, shp2, by = 'state') #hopefull this works
+
+
+#ggplot(test2$geometry) + geom_sf(aes(group = test2$flavor_profile, fill = test2$flavor_profile), show.legend = TRUE) + geom_sf_label(aes(label = test2$state))
+
+# Down to 206
+```
+```{r, include=FALSE}
+# For EDA
+eda <- df2[c(3, 6:9)]
+#table(eda$flavor_profile, eda$course)
+meal <- c('Dessert', 'Main Course', 'Snack', 'Starter')
+bitter <- c(0, 3, 1, 0)
+sour <- c(0, 1, 0, 0)
+spicy <- c(0, 91, 26, 2)
+sweet <- c(79, 3, 0, 0)
+eda_data <- data.frame(meal, bitter, sour, spicy, sweet)
+fig <- plot_ly(eda_data, x =~meal, y = ~bitter, type = 'bar', name = 'Bitter', color = 'black') 
+fig <- fig %>% add_trace(y = ~sour, name = 'Sour', color = 'green')
+fig <- fig %>% add_trace(y = ~spicy, name = 'Spicy', color = 'red')
+fig <- fig %>% add_trace(y = ~sweet, name = 'Sweet', color = 'yellow')
+fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
+fig <- fig %>% layout(title = 'Distribution of Flavors across Meal Types')
+fig <- fig %>% layout(theme = theme_pat())
+```
+```{r, include=FALSE}
+# For Text
+text_data <- df2[c(2, 6)]
+mod_text<- text_data %>% 
+  mutate(flavor_profile = tolower(flavor_profile),
+         flavor_profile = str_trim(str_replace_all(flavor_profile, "\\[.*?\\]", "")))
+text_tokens <- mod_text %>%
+  select(line = flavor_profile, ingredients) %>% 
+  unnest_tokens(word, ingredients, strip_numeric = TRUE) %>%
+  mutate(word = str_replace_all(word, "'s$", ""))
+tidy_tokens_text <- text_tokens %>% 
+  anti_join(stop_words, by = "word")
+
+custom_stop_words <- bind_rows(data_frame(word = c('food'), 
+                                          lexicon = c("custom")), 
+                               stop_words)
+
+tidy_tokens_text <- tidy_tokens_text %>% 
+  anti_join(custom_stop_words, by = "word")
+
+word_ratios_sweet_spicy <- tidy_tokens_text %>%
+  filter(line %in% c("sweet", 'spicy')) %>% 
+  count(word, line) %>%
+  filter(n >= 10) %>%
+  spread(line, n, fill = 0) %>%
+  mutate(across(where(is.numeric), ~(.+1)/sum(.+1))) %>% # Avoiding 0/0 issues
+  # mutate_if(is.numeric, funs((. + 1) / sum(. + 1))) %>% 
+  mutate(log_ratio = log2(sweet / spicy)) %>% # log base 2 scale
+  arrange(desc(log_ratio))
+
+knitr::kable(word_ratios_sweet_spicy %>% 
+               arrange(abs(log_ratio)) %>% 
+               head(10), "html") %>% 
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover"))
+
+
+```
+```{r}
+# For Networks
+region_text <- df2[c(2, 9)]
+region_text<- region_text %>% 
+  mutate(region = tolower(region),
+         region = str_trim(str_replace_all(region, "\\[. *?\\]", "")))
+region_tokens <- region_text %>%
+  select(line = region, ingredients) %>% 
+  unnest_tokens(word, ingredients, strip_numeric = TRUE) %>%
+  mutate(word = str_replace_all(word, "'s$", ""))
+region_tokens_text <- region_tokens %>% 
+  anti_join(stop_words, by = "word")
+#table(region_tokens_text$line, region_tokens_text$word)
+```
+```{r}
+vals <- c(2, 0, 3, 0, 1,
+          9, 16, 2, 3, 2,
+          15, 4, 2, 2, 30,
+          6, 3, 0, 9, 2,
+          12, 8, 22, 14, 1,
+          48, 15, 12, 12, 4)
+col.pal <- c(flour = 'red', sugar = 'yellow', dal = 'black', rice = 'blue', masala = 'orange')
+region_matrix <- matrix(vals, nrow = 5, dimnames = list(c('flour', 'sugar', 'dal', 'rice', 'masala'), c('Central', 'East', 'North', 'NorthEast', 'South', 'West')))
+```
+```{r}
+# For Time Series
+e <- ts %>% mutate(highlight = ifelse(Crop == 'Sugarcane', 'Sugar', 'Other')) %>%
+  ggplot(aes(x = Year, y = N, group = Crop, color = highlight, size = highlight)) + 
+  geom_line() + 
+  scale_color_manual(values = c("#69b3a2", "lightgrey")) +
+  scale_size_manual(values=c(.2,1.5)) +
+  theme(legend.position="right") +
+  ggtitle('Annual Wholesale Price Index of Agriculture Produce in India') + theme_pat()
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+#### Introduction
+
+Though I really love food; I am very picky. There are certain things I will not eat namely spicy food. I have a really low tolerance on spicy food--and yet I do not understand how some people enjoy eating them. Growing up, one of my childhood friend is Indian. After school, I got invited to my friend's house to play board games and chess. My friend's parents are very hospitable and always offered me food; sadly I always had to refuse or reject their offer. Reminiscing from the past, I would like to try one, but how do I choose which Indian dish to make?
+
+#### Starting from Selecting an Indian State/Region:
+### Geographical
+
+```{r}
+ggplot(test2$geometry) + geom_sf(aes(group = test2$flavor_profile, fill = test2$flavor_profile), show.legend = TRUE) + ggrepel::geom_label_repel(aes(label = test2$state, geometry = geometry), stat = 'sf_coordinates', min.segment.length = 0) + theme_light() + ggtitle('Dominant Recipe Flavor for Each Indian State') + ylab('Latitude') + xlab('Longitude') + guides(fill = guide_legend(title = 'Flavor'))
+
+#ggplotly(geo, tooltip = test2$state)
+
+```
+
+Column {data-width=300}
+-----------------------------------------------------------------------
+
+#### Why are there so many Indian States with Sweet Label?
+It seems odd that there are Indian states that have dominantly sweet recipes. Therefore, I tried to look into the meal course distribution if it could explain something.
+
+#### Heavy Contrast between Sweet and Spicy
+It is now apparent that the bulk of the data is filled with sweet and spicy Indian recipes. It does make sense now that why some states are dominated by sweet recipes; they just have a lot of dessert recipes that overshadows the main courses. 
+
+### Exploratory
+```{r}
+fig
+```
+
+-----------------------------------------------------------------------
+
+
+
+### Text
+
+```{r}
+word_ratios_sweet_spicy %>%
+  group_by(direction = ifelse(log_ratio < 0, 'spicy', 'sweet')) %>%
+  top_n(15, abs(log_ratio)) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, log_ratio)) %>% # Re-ordering factor for plotting
+  ggplot(aes(word, log_ratio, color = direction)) +
+  geom_segment(aes(x = word, xend = word,
+                   y = 0, yend = log_ratio),
+               size = 1.1, alpha = 0.6) +
+  geom_point(size = 2.5) +
+  coord_flip() +
+  theme_pat() +
+  labs(x = NULL, 
+       y = "Relative Occurrence",
+       title = "Distinguishable Ingredients between Spicy and Sweet Indian Foods") +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank()) +
+  scale_y_continuous(breaks = seq(-6, 6), 
+                     labels = c("64x", "32x", "16x","8x", "4x", "2x", # This is due to log base 2
+                                "Same", "2x", "4x", "8x", "16x", "32x", "64x")) +
+  scale_color_manual(values = c("#daad62", "#9c311f")) 
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+#### Flour is Dominated in the West, while Sugar is evenly dispersed
+
+### Network
+```{r}
+chordDiagram(region_matrix, grid.col =  col.pal, title(main = 'Top Ingredients Distribution by Region')) 
+```
+
+### Time Series
+```{r}
+ggplotly(e)
+```

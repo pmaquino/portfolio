@@ -1,0 +1,59 @@
+---
+title: "task2"
+author: "Patrick Aquino"
+date: "10/21/2020"
+output: html_document
+---
+
+# Task
+
+What is the distribution of all loans and what are their characteristics?
+
+# Procedure
+### 1. Import dataset (accounts_analytical and transactions)
+### 2. Convert Loan_Default as factor
+### 3. Create distributions for each type of loans
+### 4. Create subset of all TRUE for Default_loans
+### 5. Make loan_term factor
+### 6. Visualize
+
+
+# Import
+
+```{r import, include=FALSE}
+acc <- read.csv('accounts_analytical.csv')
+trans <- read.csv('transactions.csv')
+```
+
+# Convert Loan Default as Factor
+```{r loand, include=T}
+acc$loan_default <- as.factor(acc$loan_default)
+```
+
+# Distributions of Loans
+
+```{r vis, include= T}
+library(ggplot2)
+vis <- ggplot(data = acc, mapping = aes(x = loan_amount, y = loan_payment, color = loan_default, alpha = 0.15)) + geom_point() + facet_wrap(. ~ loan_term, ncol =3)
+
+vis + labs(title = 'Distributions of Loans per Loan Term', y = 'Loan Payment', x = 'Loan Amount')
+```
+
+# Create subset
+```{r chars, include=T}
+defs <- subset(acc, loan_default == 'TRUE')
+defs$paid <- defs$loan_payment / defs$loan_amount
+```
+
+# Make loan_term factor
+```{r termf, include=T}
+defs$loan_term <- as.factor(defs$loan_term)
+```
+
+# Visualization
+```{r viss, include=T}
+vis <- ggplot(data = defs, mapping = aes(x = loan_amount, y = loan_payment, size = paid, shape = loan_term, alpha = 0.15)) + geom_point() 
+
+
+vis + labs(title = 'Distribution of Defaulted Loans with other Characteristics', y = 'Loan Payment', x = 'Loan Amount')
+```

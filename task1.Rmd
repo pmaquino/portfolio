@@ -1,0 +1,112 @@
+---
+title: "task1"
+author: "Patrick Aquino"
+date: "10/21/2020"
+output: html_document
+---
+
+# Task:
+
+Explore all accounts. Create visualizations that combine (or these account characteristics): \
+- Whether an account has a credit card or not \
+- Whether an account has a loan or not \
+- The average balance for the account
+
+
+
+# Procedure
+### 1. Import dataset (accounts_analytical and transactions)
+### 2. Convert $credit_cards to binary 
+### 3. Convert $loan_status to binary
+### 4. Find average $balance per account
+### 5. Create a new dataframe
+### 6. Merge account, credit_Card, loan_status and avg_balance
+### 7. Create new variable with 4 levels combining credit card (yes or no) and loan (yes or no)
+### 8. Splitting the BIG dataframe into smaller dataframes to make a more comprehensible visuals
+### 9. Create box plot of the average balances and color with the 4 levels
+
+
+# Import
+
+```{r import, include=TRUE}
+acc <- read.csv('accounts_analytical.csv')
+trans <- read.csv('transactions.csv')
+```
+
+# Convert to Binarys 
+```{r binary, include=TRUE}
+acc[is.na(acc)] = 0 # converting NAs to 0
+acc$cc_binary <- ifelse(acc$credit_cards == 0, 0, 1)
+acc$loans_binary <- ifelse(acc$loan_status == 'current' | acc$loan_status == 'expired', 1, 0)
+```
+
+# Find average balance per account
+```{r average, include=TRUE}
+avg <- with(trans, tapply(balance, account_id, mean))
+c <- as.data.frame(avg)
+c$avg <- as.numeric(c$avg)
+uni <- unique(trans$account_id)
+c$account_id <- uni
+```
+
+# Merge Balance per Account
+```{r newdf, include=TRUE}
+library(dplyr)
+final <- merge(acc, c, by = 'account_id')
+final <- final %>%
+  select(account_id, cc_binary, loans_binary, avg)
+```
+
+# Create a new variable combining Credit Card and Loans
+```{r final, include= TRUE}
+final <- final %>%
+  mutate(cc_loans =  case_when(cc_binary == '1' & loans_binary == '1' ~ 'both credit card and loans',
+                               cc_binary == '1' & loans_binary == '0' ~ 'just credit card',
+                               cc_binary == '0' & loans_binary == '1' ~ 'just loans',
+                               cc_binary == '0' & loans_binary == '0' ~ 'neither credit card nor loans'))
+final$cc_loans <- as.factor(final$cc_loans)
+```
+
+# splitting the big dataframe into smaller dataframes
+```{r}
+# 4500/4 = 1125
+first <- final[1:1125, ]
+second <- final[1126:2300, ]
+third <- final[2301:3425, ]
+fourth <- final[3450:4500, ]
+
+```
+
+# Do Visualizations for R
+```{r visr, include= TRUE}
+library(ggplot2)
+
+fvis <- ggplot(first, aes(x= account_id, y= avg, fill = cc_loans)) +  geom_bar(stat = 'identity') 
+svis <- ggplot(second, aes(x= account_id, y= avg, fill = cc_loans)) +  geom_bar(stat = 'identity') 
+tvis <- ggplot(third, aes(x= account_id, y= avg, fill = cc_loans)) +  geom_bar(stat = 'identity') 
+fovis <- ggplot(fourth, aes(x= account_id, y= avg, fill = cc_loans)) +  geom_bar(stat = 'identity') 
+```
+
+# First Quartile Accounts
+```{r first, include=TRUE}
+fvis + labs(title = "Average Balance for first Quartile Account IDs", x = "Account ID", y = "Balance") 
+```
+
+# Second Quartile Accounts
+```{r second, include=TRUE}
+svis + labs(title = "Average Balance for second Quartile Account IDs", x = "Account ID", y = "Balance") 
+```
+
+# Third Quartile Accounts
+```{r third, include=TRUE}
+tvis + labs(title = "Average Balance for third Quartile Account IDs", x = "Account ID", y = "Balance") 
+```
+
+# Fourth Quartile Accounts
+```{r fourth, include=TRUE}
+fovis + labs(title = "Average Balance for fourth Quartile Account IDs", x = "Account ID", y = "Balance") 
+
+```
+
+
+

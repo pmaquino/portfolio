@@ -1,0 +1,74 @@
+---
+title: "task5"
+author: "Patrick Aquino"
+date: "10/21/2020"
+output: html_document
+---
+
+Task:
+
+Explore the validity of the data for the case whether or not an acocunt has a credit card and whether or not they have associated credit card transactions. Is there anything worth noting?
+
+
+# Procedure:
+### 1. Get Reticulate
+### 2. Import dataset (accounts_analytical and transactions)
+### 3. Make acc$credit_cards as a factor with levels
+### 4. Subset trans data to be only Credit Card transactions
+### 5. Drop NAs
+### 6. Play around it and Visualize?!
+
+# Reticulate
+```{r}
+#library(reticulate)
+#conda_create("r-reticulate")
+#conda_install("r-reticulate", "scipy")
+#conda_install("r-reticulate", "pandas")
+#conda_install("r-reticulate", "numpy")
+```
+
+# Import
+
+```{python}
+#import numpy as np
+```
+
+```{r}
+acc <- read.csv('accounts_analytical.csv')
+trans <- read.csv('transactions.csv')
+```
+
+# Change to Factor
+```{r tofact, include = T}
+acc$credit_cards <- as.factor(acc$credit_cards)
+```
+
+# Subset only to Credit Cards
+```{r credsonly, include=T}
+cred_acc <- acc[acc$credit_cards == '1',]
+cred_trans <- trans[trans$type == 'credit',]
+```
+
+# Drop NAs
+```{r nona, include=T}
+completeFun <- function(data, desiredCols) {
+  completeVec <- complete.cases(data[, desiredCols])
+  return(data[completeVec, ])
+}
+cred_acc <- completeFun(cred_acc, "credit_cards")
+```
+
+# Play around it? LOL
+```{r play, include=T}
+library(ggplot2)
+#setdiff(cred_acc$account_id, cred_trans$account_id) none
+#summary(cred_acc)
+a <- ggplot(cred_acc, aes(x = account_id, y = debit_cash_household_payment_avg_txn)) + geom_point()
+```
+
+# Debit transactions on an all Credit Card data?!
+```{r debit, include=T}
+a + labs(title = 'Debit Transactions while being a Pure Credit Card Data', x = 'Account ID', y = 'Debit Household Payment')
+```
+
+It does not make sense for these values to show up. Some debit variables also have random values such as bank transfer, negative balance etc. There should be some questions of validity in this data. 
